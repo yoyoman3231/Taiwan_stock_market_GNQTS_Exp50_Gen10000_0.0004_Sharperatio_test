@@ -4,6 +4,7 @@
 #include <sstream>
 #include <string>
 #include <iomanip>
+#include <math.h>
 using namespace std;
 
 ifstream input_file;
@@ -88,9 +89,9 @@ int i, j, k, a;
 int kind[50];
 //double n;
 int n[50];//算選的投資組合有幾個
-int partical_num = 10;
-int generation = 10000;
-int experiment_time = 50;
+int partical_num = 1;
+int generation = 1;
+int experiment_time = 1;
 int s_stock_index = 0;//train stock num
 int test_stock_index = 0;
 
@@ -102,7 +103,7 @@ int test_day;
 double all_max = 0;
 int all_max_solution[10000];
 double random;
-int file_num = 16;
+int file_num = 1;
 double Gbest[50];
 double all_max_tmp[50];
 double Gbest_max;
@@ -264,16 +265,21 @@ string QQ_test[] = { "test_2010_Q1(2009 Q1).csv" ,"test_2010_Q2(2009 Q1).csv", "
 string HH_test[] = { "test_2010_Q1-Q2(2009 Q1).csv", "test_2010_Q3-Q4(2009 Q1).csv", "test_2011_Q1-Q2(2010 Q1).csv", "test_2011_Q3-Q4(2010 Q1).csv", "test_2012_Q1-Q2(2011 Q1).csv", "test_2012_Q3-Q4(2011 Q1).csv", "test_2013_Q1-Q2(2012 Q1).csv", "test_2013_Q3-Q4(2012 Q1).csv", "test_2014_Q1-Q2(2013 Q1).csv", "test_2014_Q3-Q4(2013 Q1).csv", "test_2015_Q1-Q2(2014 Q1).csv", "test_2015_Q3-Q4(2014 Q1).csv", "test_2016_Q1-Q2(2015 Q1).csv", "test_2016_Q3-Q4(2015 Q1).csv", "test_2017_Q1-Q2(2016 Q1).csv", "test_2017_Q3-Q4(2016 Q1).csv" };
 /*測試期讀檔*/
 
-double sharpe_ratio;//夏普值
+double sharpe_ratio[10];//夏普值
 double sharpe_ratio_risk[10];//夏普值風險
 double sharpe_ratio_return[10];//夏普值報酬
+double risk_free = 0.0087;//台股無風險利率
+double funds_std_total[10];
+double average_funds_std[10];
+double roi[10];
+double funds_std_standard_deviation[10];
 
 int all_file_gbest_num[200];//測試期投資組合檔數
 
 void read_file(int a) {
 
-	input_file.open(HH_train[a], ios::in);
-	cout << endl << HH_train[a] << endl;
+	input_file.open(M2M_train[a], ios::in);
+	cout << endl << M2M_train[a] << endl;
 	string line;
 	while (getline(input_file, line))
 	{
@@ -311,8 +317,8 @@ void read_file(int a) {
 
 void test_read_file(int a) {
 
-	test_input_file.open(HH_test[a], ios::in);
-	cout << endl << HH_test[a] << endl;
+	test_input_file.open(M2M_test[a], ios::in);
+	cout << endl << M2M_test[a] << endl;
 	string test_line;
 	while (getline(test_input_file, test_line))
 	{
@@ -365,13 +371,13 @@ void  measure()
 		for (int j = 0; j < s_stock_index; j++) {
 
 			random = rand() / 32767.0;
-			if (random < beta[j]) {
+			/*if (random < beta[j]) {
 				partical[i][j] = 1;
 			}
-			else partical[i][j] = 0;//隨機給0或1
-									/*if (j == 0 || j == 1 || j == 2)
+			else partical[i][j] = 0;*///隨機給0或1
+									if (j == 6 || j == 12 || j == 13 || j == 20 || j == 25 || j == 48)
 									partical[i][j] = 1;
-									else partical[i][j] = 0;*/
+									else partical[i][j] = 0;
 			if (partical[i][j] == 1)
 			{
 				stock_index[i][n[i]] = j;
@@ -389,6 +395,7 @@ void standardization()
 {
 	for (int i = 0; i < partical_num; i++)
 	{
+		funds_std_total[i] = 0;
 		share_money = initial_fund / n[i];//每次選擇後平均每檔的資金,不要刪!!!!
 		all_share_money[i] = share_money;//把每個粒子的分配資金存起來
 		remaind = initial_fund - share_money * n[i];//投資組合分配完剩下的錢
@@ -424,6 +431,7 @@ void standardization()
 			}
 			yi[i][k] += remaind;//v
 			all_total_yi[k] = yi[i][k];
+			funds_std_total[i] += yi[i][k];
 		}
 	}
 }
@@ -581,21 +589,34 @@ void test_fitness(int a)//計算測試期各區間趨勢值
 
 void sharpe_ratio_cal()
 {
+	double funds_std_standard_deviation_tmp_1 = 0;
+	double funds_std_standard_deviation_tmp_2 = 0;
 	for (int i = 0; i < partical_num; i++)
 	{
-		for (int d = 0; d < day; d++)
-		{
+		roi[i] = 0;
+		funds_std_standard_deviation[i] = 0;
+		roi[i] = (yi[i][day-1] - initial_fund) / initial_fund;
+		average_funds_std[i] = funds_std_total[i] / day - 1;
+		cout << fixed << setprecision(20) << average_funds_std[i] << endl;
+		sharpe_ratio_risk[i] = 0;
+		sharpe_ratio[i] = 0;
 
+		for (int k = 0; k < day; k++)
+		{
+			funds_std_standard_deviation_tmp_1= yi[i][k] - average_funds_std[i];
+			funds_std_standard_deviation_tmp_1 *= funds_std_standard_deviation_tmp_1;
+			funds_std_standard_deviation_tmp_2 += funds_std_standard_deviation_tmp_1;
+			funds_std_standard_deviation_tmp_2 /= day - 1;
 		}
+		funds_std_standard_deviation[i] = sqrt(funds_std_standard_deviation_tmp_2);
+		cout << fixed << setprecision(20) << funds_std_standard_deviation[i] << endl;
+		sharpe_ratio_risk[i] = funds_std_standard_deviation[i] / day - 1;
+		sharpe_ratio[i] = (roi[i] - risk_free) / risk[i];
+
+		cout << "夏普值:" << fixed << setprecision(20) << sharpe_ratio[i] << endl;
 	}
 
-	for (int i = 0; i < partical_num; i++)
-	{
-		for (int d = 0; d < day; d++)
-		{
-
-		}
-	}
+	
 }
 
 
@@ -876,7 +897,7 @@ void out_file(int a)
 
 void test_out_file(int a)
 {
-	string ouput_file = "Larry_result_" + HH_test[a].substr(0, HH_test[a].length());//輸出檔案名稱
+	string ouput_file = "Larry_result_" + M2M_test[a].substr(0, M2M_test[a].length());//輸出檔案名稱
 	output_file.open(ouput_file, ios::app);//檔案輸出
 	output_file << "代數" << "," << generation << endl;//v
 	output_file << "粒子數" << "," << partical_num << endl;//v
@@ -1048,6 +1069,7 @@ int main()
 				measure();
 				standardization();
 				fitness();
+				sharpe_ratio_cal();
 				compare();
 				for (int i = 0; i < partical_num; i++)
 				{
@@ -1124,5 +1146,6 @@ int main()
 	}
 	all_test_risk();//總體測試期風險計算
 	all_testperiod_final_result();//總體測試期結果輸出
+	system("pause");
 	return 0;
 }
